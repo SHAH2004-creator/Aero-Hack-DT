@@ -16,9 +16,93 @@ export default function App() {
     strain: 25,
     temperature: 65,
   });
-  const [history, setHistory] = useState<HistoricalPoint[]>([]);
-  const [nodes, setNodes] = useState<ComponentNode[]>([]);
-  const [audits, setAudits] = useState<AuditRecord[]>([]);
+
+  const defaultNodes: ComponentNode[] = [
+    {
+      id: "Node-1",
+      name: "Rotor Bearing Assembly",
+      stress: 18,
+      isFailed: false,
+      status: "Healthy",
+      threshold: "Vibration > 120Hz triggers critical fault",
+      currentTrigger: "42Hz (Threshold: 120Hz)",
+      rulHours: 1047,
+      action: "Green: Schedule standard maintenance"
+    },
+    {
+      id: "Node-2",
+      name: "Wing Spar Joint",
+      stress: 34,
+      isFailed: false,
+      status: "Healthy",
+      threshold: "Inherits 50% load from Rotor Bearing + raw strain load",
+      currentTrigger: "25% Strain Base + 9% inherited stress",
+      rulHours: 1871,
+      action: "Green: Wing structures stable"
+    },
+    {
+      id: "Node-3",
+      name: "Fuselage Mount",
+      stress: 24,
+      isFailed: false,
+      status: "Healthy",
+      threshold: "Inherits 30% of Node-2 Wing Joint load + raw thermo-workload",
+      currentTrigger: "24% Thermal load + 10% inherited stress",
+      rulHours: 3376,
+      action: "Green: Continuous fuselage shim tracking active"
+    }
+  ];
+
+  const defaultHistory: HistoricalPoint[] = Array.from({ length: 30 }).map((_, index) => {
+    const timeStr = new Date(Date.now() - (29 - index) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return {
+      time: timeStr,
+      vibration: Math.round(42 + (Math.sin(index * 0.5) * 4) + (Math.random() * 2 - 1))
+    };
+  });
+
+  const defaultAudits: AuditRecord[] = [
+    {
+      id: "AUD-9104",
+      timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
+      componentId: "Node-1",
+      inspectorEmail: "as695853@gmail.com",
+      category: "Torque Compliance",
+      status: "Approved",
+      notes: "Rotor Bearing Assembly mounting fasteners calibrated and secured to nominal levels. Dual inspected and sealed.",
+      shiftNumber: "Shift-1",
+      torqueValue: 96.2,
+      shimmingDeviation: 0.02
+    },
+    {
+      id: "AUD-737M",
+      timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+      componentId: "Node-2",
+      inspectorEmail: "as695853@gmail.com",
+      category: "Traveled Work",
+      status: "Rectification Required",
+      notes: "Wing Spar Joint structural inspection identified 3 unlogged fasteners. Traveled work tracker indicates they were missed during wing assembly shift transition. Flagged for immediate laser shearography verification.",
+      shiftNumber: "Shift-2",
+      torqueValue: 45.0,
+      shimmingDeviation: 0.15
+    },
+    {
+      id: "AUD-787S",
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      componentId: "Node-3",
+      inspectorEmail: "as695853@gmail.com",
+      category: "Fuselage Shimming",
+      status: "Pending",
+      notes: "Fuselage Mount audit initiated. Active shimming gaps under fuselage micro-measure checks to avoid micro-discrepancy fatigue. Awaiting final thermal stabilization of environment.",
+      shiftNumber: "Shift-3",
+      torqueValue: 82.5,
+      shimmingDeviation: 0.08
+    }
+  ];
+
+  const [history, setHistory] = useState<HistoricalPoint[]>(defaultHistory);
+  const [nodes, setNodes] = useState<ComponentNode[]>(defaultNodes);
+  const [audits, setAudits] = useState<AuditRecord[]>(defaultAudits);
   const [isStreaming, setIsStreaming] = useState(true);
   const [isConnected, setIsConnected] = useState(true);
   
@@ -227,10 +311,78 @@ export default function App() {
         const data = await res.json();
         setHistory(data.historicalTelemetry);
         setNodes(data.nodes);
+        setIsConnected(true);
+        return;
       }
     } catch (err) {
-      console.error("Fail updating variable: ", key, val, err);
+      console.debug("Offline update, falling back to local calculation.");
     }
+
+    setIsConnected(false);
+    const vibration = nextTelemetry.vibration;
+    const strain = nextTelemetry.strain;
+    const temperature = nextTelemetry.temperature;
+
+    const node1Stress = Math.min(100, Math.round(((vibration - 10) / (200 - 10)) * 100));
+    const node1Failed = vibration > 120;
+    const node1Status = node1Failed ? "Critical Failure" : node1Stress > 55 ? "Elevated Stress" : "Healthy";
+
+    const node2Stress = Math.min(100, Math.round(strain + 0.5 * node1Stress));
+    const node2Status = node2Stress > 75 ? "Critical Failure" : node2Stress > 40 ? "Elevated Stress" : "Healthy";
+
+    const thermalRatio = ((temperature - 20) / (150 - 20)) * 100;
+    const node3Stress = Math.min(100, Math.round(thermalRatio * 0.4 + 0.3 * node2Stress));
+    const node3Status = node3Stress > 75 ? "Critical Failure" : node3Stress > 40 ? "Elevated Stress" : "Healthy";
+
+    const offlineNodes: ComponentNode[] = [
+      {
+        id: "Node-1",
+        name: "Rotor Bearing Assembly",
+        stress: node1Stress,
+        isFailed: node1Failed,
+        status: node1Status,
+        threshold: "Vibration > 120Hz triggers critical fault",
+        currentTrigger: `${vibration}Hz (Threshold: 120Hz)`,
+        rulHours: Math.max(0, Math.round(1200 - (node1Stress * 8.5))),
+        action: node1Failed 
+          ? "Red: Immediate Torque Verification within 3 flight cycles" 
+          : node1Stress > 55 
+            ? "Amber: Vibration check scheduled within 10 hrs" 
+            : "Green: Schedule standard maintenance"
+      },
+      {
+        id: "Node-2",
+        name: "Wing Spar Joint",
+        stress: node2Stress,
+        isFailed: node2Stress > 75,
+        status: node2Status,
+        threshold: "Inherits 50% load from Rotor Bearing + raw strain load",
+        currentTrigger: `${strain}% Strain Base + ${Math.round(0.5 * node1Stress)}% inherited stress`,
+        rulHours: Math.max(0, Math.round(2500 - (node2Stress * 18.5))),
+        action: node2Stress > 75 
+          ? "Red: Ultrasound crack scan immediately" 
+          : node2Stress > 40 
+            ? "Amber: Structural frame fastener tension audit next flight cycle" 
+            : "Green: Wing structures stable"
+      },
+      {
+        id: "Node-3",
+        name: "Fuselage Mount",
+        stress: node3Stress,
+        isFailed: node3Stress > 75,
+        status: node3Status,
+        threshold: "Inherits 30% of Node-2 Wing Joint load + raw thermo-workload",
+        currentTrigger: `${Math.round(thermalRatio)}% Thermal load + ${Math.round(0.3 * node2Stress)}% inherited stress`,
+        rulHours: Math.max(0, Math.round(4000 - (node3Stress * 26.0))),
+        action: node3Stress > 75 
+          ? "Red: Complete fuselage shimming audit & fastener replacement required" 
+          : node3Stress > 40 
+            ? "Amber: Thermographic shim inspection scheduled in 24 hours" 
+            : "Green: Continuous fuselage shim tracking active"
+      }
+    ];
+
+    setNodes(offlineNodes);
   };
 
   // Archive a customized QA audit log document block
@@ -244,10 +396,20 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAudits(data.audits);
+        setIsConnected(true);
+        return;
       }
     } catch (err) {
-      console.error("Archiving QA Audit Failed:", err);
+      console.debug("Offline update, falling back to local audit archiving.");
     }
+
+    setIsConnected(false);
+    const mockAudit: AuditRecord = {
+      ...newAudit,
+      id: `AUD-${Math.floor(1000 + Math.random() * 9000).toString(16).toUpperCase()}`,
+      timestamp: new Date().toISOString()
+    };
+    setAudits((prev) => [mockAudit, ...prev]);
   };
 
   // Rebuild defaults inside our simulated session ledger
@@ -257,10 +419,15 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAudits(data.audits);
+        setIsConnected(true);
+        return;
       }
     } catch (err) {
-      console.error("QA Re-Sealing Failed:", err);
+      console.debug("Offline update, falling back to local audit reset.");
     }
+
+    setIsConnected(false);
+    setAudits(defaultAudits);
   };
 
   // Solve the collective system status dynamically
