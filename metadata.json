@@ -1,0 +1,6 @@
+{
+  "name": "AeroShield DT",
+  "description": "A high-fidelity full-stack aviation predictive maintenance digital twin displaying synthetic telemetry feeds, cascading node stresses, and quality assurance audit logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    match /component_states/{componentId} {
+      allow get, list: if true;
+
+      allow create, update: if isSignedIn()
+        && isValidId(componentId)
+        && incoming().id == componentId
+        && incoming().name is string
+        && incoming().name.size() <= 200
+        && incoming().stress is number
+        && incoming().isFailed is bool
+        && incoming().rulHours is number
+        && incoming().actionRequired is string
+        && incoming().actionRequired.size() <= 1000;
+
+      allow delete: if false;
+    }
+
+    match /audit_records/{auditId} {
+      allow get, list: if true;
+
+      allow create: if isSignedIn()
+        && isValidId(auditId)
+        && incoming().id == auditId
+        && incoming().componentId is string
+        && incoming().inspectorEmail == request.auth.token.email
+        && incoming().category is string
+        && incoming().status in ['Approved', 'Rectification Required', 'Sealed', 'Pending']
+        && incoming().notes is string
+        && incoming().notes.size() <= 5000;
+
+      allow update: if isSignedIn()
+        && existing().inspectorEmail == request.auth.token.email
+        && incoming().inspectorEmail == existing().inspectorEmail
+        && incoming().category is string
+        && incoming().status in ['Approved', 'Rectification Required', 'Sealed', 'Pending']
+        && incoming().notes is string
+        && incoming().notes.size() <= 5000;
+
+      allow delete: if false;
+    }
+  }
+}

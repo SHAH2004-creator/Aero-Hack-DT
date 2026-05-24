@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "ComponentState": {
+      "title": "ComponentState",
+      "description": "Represents the real-time physical indicators and hazard assessment of an aviation component.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the component node."
+        },
+        "name": {
+          "type": "string",
+          "description": "Readable name of the structural element."
+        },
+        "stress": {
+          "type": "number",
+          "description": "Calculated real-time stress load coefficient from 0 to 100."
+        },
+        "isFailed": {
+          "type": "boolean",
+          "description": "Indicates if stress exceeded hazard tolerance thresholds."
+        },
+        "rulHours": {
+          "type": "number",
+          "description": "Pre-calculated Remaining Useful Life metric in operational hours."
+        },
+        "actionRequired": {
+          "type": "string",
+          "description": "Prescriptive actions to correct current structural discrepancy."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The ISO timestamp representing when the node state was computed."
+        }
+      },
+      "required": ["id", "name", "stress", "isFailed", "rulHours", "actionRequired", "updatedAt"]
+    },
+    "AuditRecord": {
+      "title": "AuditRecord",
+      "description": "An aerospace audit certificate documenting corrective action or traveled work tracking.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique auto-generated ID of the QA entry."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time of file entry."
+        },
+        "componentId": {
+          "type": "string",
+          "description": "The affected component's ID."
+        },
+        "inspectorEmail": {
+          "type": "string",
+          "description": "Regulatory trackability identity of the inspecting engineer."
+        },
+        "category": {
+          "type": "string",
+          "description": "Categorization of discrepancy (e.g., Shimming, Torque, Traveled Work, Fatigue, Corrosion)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Approved", "Rectification Required", "Sealed", "Pending"],
+          "description": "The compliance state assigned to this structural log."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Anomalies, torque compliance values, or traveled work observations."
+        }
+      },
+      "required": ["id", "timestamp", "componentId", "inspectorEmail", "category", "status", "notes"]
+    }
+  },
+  "firestore": {
+    "/component_states/{componentId}": {
+      "schema": "ComponentState",
+      "description": "Tracks and syncs real-time physical digital twin indicator parameters."
+    },
+    "/audit_records/{auditId}": {
+      "schema": "AuditRecord",
+      "description": "A ledger of inspections, torque verifications, and traveled work compliance certifications."
+    }
+  }
+}

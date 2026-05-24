@@ -1,0 +1,10 @@
+{
+  "apiKey": "",
+  "authDomain": "",
+  "projectId": "mock-project-id",
+  "storageBucket": "",
+  "messagingSenderId": "",
+  "appId": "",
+  "measurementId": "",
+  "firestoreDatabaseId": "(default)"
+}
